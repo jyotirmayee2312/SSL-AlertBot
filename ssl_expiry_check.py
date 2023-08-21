@@ -1,9 +1,9 @@
 import json
 import requests
 import os
-from datetime import datetime
-from cryptography import x509
-from cryptography.hazmat.backends import default_backend
+import ssl
+import socket
+import datetime
 
 def send_slack_notification(domain, days_to_expire):
     message = f"SSL Expiry Alert\n   * Domain: {domain}\n   * Warning: The SSL certificate for {domain} will expire in {days_to_expire} days."
@@ -18,12 +18,14 @@ def send_slack_notification(domain, days_to_expire):
     except requests.exceptions.RequestException as e:
         print("Error sending Slack notification:", e)
 
-def calculate_days_until_expiry(cert_data):
-    cert = x509.load_pem_x509_certificate(cert_data, default_backend())
-    expiration_date = cert.not_valid_after
-    current_date = datetime.utcnow()
-    days_until_expiry = (expiration_date - current_date).days
-    return days_until_expiry
+def check_ssl_expiry(domain):
+    context = ssl.create_default_context()
+    with socket.create_connection((domain, 443)) as sock:
+        with context.wrap_socket(sock, server_hostname=domain) as tls_sock:
+            cert = tls_sock.getpeercert()
+            expiry_date = datetime.datetime.strptime(cert['notAfter'], "%b %d %H:%M:%S %Y %Z")
+            days_until_expiry = (expiry_date - datetime.datetime.now()).days
+            return days_until_expiry
 
 def main():
     try:
@@ -33,10 +35,7 @@ def main():
 
             for domain in domains:
                 try:
-                    # Retrieve SSL certificate for the domain and calculate days_until_expiry
-                    response = requests.get(f"https://{domain}")
-                    cert_data = response.content
-                    days_to_expire = calculate_days_until_expiry(cert_data)
+                    days_to_expire = check_ssl_expiry(domain)
 
                     if days_to_expire <= 30:
                         send_slack_notification(domain, days_to_expire)
