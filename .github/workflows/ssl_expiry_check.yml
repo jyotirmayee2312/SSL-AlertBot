@@ -1,0 +1,28 @@
+name: SSL Expiry Check
+
+on:
+  schedule:
+    - cron: '0 0 * * *' # Run every day at midnight UTC
+  workflow_dispatch: # Allow manual triggering
+
+jobs:
+  check_ssl_expiry:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.x' # Replace with the version you're using
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run SSL expiry check
+        run: python ssl_expiry_check.py
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }} # Use the Slack webhook secret
+
